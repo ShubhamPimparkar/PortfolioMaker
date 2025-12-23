@@ -4,13 +4,13 @@ spring:
 
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/portfolio}
-    username: ${SPRING_DATASOURCE_USERNAME:portfolio}
-    password: ${SPRING_DATASOURCE_PASSWORD:portfolio}
+    username: ${SPRING_DATASOURCE_USERNAME:root}
+    password: ${SPRING_DATASOURCE_PASSWORD:root}
     driver-class-name: org.postgresql.Driver
 
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: update
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -25,8 +25,7 @@ server:
 
 app:
   jwt:
-    # Secret should be provided via environment variable JWT_SECRET
-    secret: ${JWT_SECRET:change-me-in-prod}
+    secret: ${JWT_SECRET:yWokYxTtcxIbzwHaefQ6YaeGpVtPpV+AqpI0JofhLyA=}
     expiration-seconds: ${JWT_EXPIRATION_SECONDS:3600}
 
 logging:
