@@ -20,7 +20,7 @@ import com.developer.repository.UserRepository;
 @Service
 public class PortfolioSettingsService {
 
-    private static final Set<String> ALLOWED_TEMPLATES = Set.of("classic", "modern", "minimal");
+    private static final Set<String> ALLOWED_TEMPLATES = Set.of("classic", "modern", "minimal","hero","product","creator");
     private static final String DEFAULT_TEMPLATE = "classic";
 
     private final PortfolioSettingsRepository portfolioSettingsRepository;
@@ -87,6 +87,14 @@ public class PortfolioSettingsService {
         if (request.getShowProjects() != null) {
             settings.setShowProjects(request.getShowProjects());
         }
+        
+        if (request.getShowEducation() != null) {
+            settings.setShowEducation(request.getShowEducation());
+        }
+        
+        if (request.getShowAchievements() != null) {
+            settings.setShowAchievements(request.getShowAchievements());
+        }
 
         PortfolioSettings saved = portfolioSettingsRepository.save(settings);
         return PortfolioSettingsResponse.fromEntity(saved);
@@ -99,6 +107,8 @@ public class PortfolioSettingsService {
         settings.setTemplateKey(DEFAULT_TEMPLATE);
         settings.setShowSkills(true);
         settings.setShowProjects(true);
+        settings.setShowEducation(true);
+        settings.setShowAchievements(true);
         return portfolioSettingsRepository.save(settings);
     }
 

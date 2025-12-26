@@ -11,7 +11,7 @@ import com.developer.entity.User;
 
 public interface ProfileRepository extends JpaRepository<Profile, UUID> {
 
-    @EntityGraph(attributePaths = "user")
+    @EntityGraph(attributePaths = {"skills", "user"})
     Optional<Profile> findByUser(User user);
 
     boolean existsByUser(User user);

@@ -27,8 +27,9 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                 .or(() -> userRepository.findByEmail(usernameOrEmail))
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with username or email: " + usernameOrEmail));
 
-        GrantedAuthority authority = new SimpleGrantedAuthority("ROLE_" + user.getRole().name());
-        return new User(user.getUsername(), user.getPasswordHash(), Collections.singleton(authority));
+//        GrantedAuthority authority = new SimpleGrantedAuthority("ROLE_" + user.getRole().name());
+//        return new User(user.getUsername(), user.getPasswordHash(), Collections.singleton(authority));
+        return new CustomUserDetails(user);
     }
 }
 

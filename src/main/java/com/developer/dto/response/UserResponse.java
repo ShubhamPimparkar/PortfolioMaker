@@ -35,5 +35,13 @@ public class UserResponse {
         response.setUpdatedAt(user.getUpdatedAt());
         return response;
     }
+
+    public static UserResponse fromEntityToLogin(User user) {
+        UserResponse response = new UserResponse();
+        response.setId(user.getId());
+        response.setEmail(user.getEmail());
+        response.setUsername(user.getUsername());
+        return response;
+    }
 }
 

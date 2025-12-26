@@ -51,6 +51,12 @@ public class PortfolioSettings {
     @Column(name = "show_projects", nullable = false)
     private Boolean showProjects = true;
 
+    @Column(name = "show_education")
+    private Boolean showEducation = true;
+
+    @Column(name = "show_achievements")
+    private Boolean showAchievements = true;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

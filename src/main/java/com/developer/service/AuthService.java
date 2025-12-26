@@ -1,5 +1,6 @@
 package com.developer.service;
 
+import com.developer.security.CustomUserDetails;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -65,7 +66,11 @@ public class AuthService {
             );
             SecurityContextHolder.getContext().setAuthentication(authentication);
             String token = jwtTokenProvider.generateToken(authentication);
-            return new AuthResponse(token, "Bearer");
+            // 🔥 Extract User from Authentication
+            CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+            User user = userDetails.getUser();
+            UserResponse userResponse = UserResponse.fromEntityToLogin(user);
+            return new AuthResponse(token, userResponse);
         } catch (BadCredentialsException ex) {
             throw ex;
         }

@@ -22,5 +22,9 @@ public class PortfolioSettingsRequest {
     private Boolean showSkills;
 
     private Boolean showProjects;
+
+    private Boolean showEducation;
+
+    private Boolean showAchievements;
 }
 

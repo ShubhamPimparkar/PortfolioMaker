@@ -28,26 +28,6 @@ public class ProfileResponse {
     private String email;
     private Instant createdAt;
     private Instant updatedAt;
-
-    public static ProfileResponse fromEntity(Profile profile) {
-        ProfileResponse response = new ProfileResponse();
-        response.setId(profile.getId());
-        response.setFullName(profile.getFullName());
-        response.setHeadline(profile.getHeadline());
-        response.setSummary(profile.getSummary());
-        response.setLocation(profile.getLocation());
-        response.setYearsOfExperience(profile.getYearsOfExperience());
-        response.setSkills(profile.getSkills());
-        response.setGithubUrl(profile.getGithubUrl());
-        response.setLinkedinUrl(profile.getLinkedinUrl());
-        response.setPortfolioUrl(profile.getPortfolioUrl());
-        if (profile.getUser() != null) {
-            response.setEmail(profile.getUser().getEmail());
-        }
-        response.setCreatedAt(profile.getCreatedAt());
-        response.setUpdatedAt(profile.getUpdatedAt());
-        return response;
-    }
 }
 
 

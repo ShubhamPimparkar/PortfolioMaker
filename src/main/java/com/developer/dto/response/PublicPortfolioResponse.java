@@ -45,12 +45,41 @@ public class PublicPortfolioResponse {
     @Getter
     @Setter
     @NoArgsConstructor
+    public static class PublicEducationDto {
+        private String institution;
+        private String degree;
+        private String fieldOfStudy;
+        private java.time.LocalDate startDate;
+        private java.time.LocalDate endDate;
+        private String grade;
+        private String description;
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    public static class PublicAchievementDto {
+        private String title;
+        private String issuer;
+        private java.time.LocalDate issueDate;
+        private String description;
+        private String link;
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
     public static class PublicSettingsDto {
         private String templateKey;
         private String primaryColor;
         private String fontFamily;
         private Boolean showSkills;
         private Boolean showProjects;
+        private Boolean showEducation;
+        private Boolean showAchievements;
     }
+
+    private List<PublicEducationDto> education;
+    private List<PublicAchievementDto> achievements;
 }
 

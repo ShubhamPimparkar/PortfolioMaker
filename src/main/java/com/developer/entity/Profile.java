@@ -4,19 +4,13 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.annotations.UuidGenerator;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.ElementCollection;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.OneToOne;
-import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -26,6 +20,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Profile {
 
     @Id
@@ -36,6 +31,7 @@ public class Profile {
 
     @OneToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false, unique = true)
+    @JsonIgnore
     private User user;
 
     @Column(name = "full_name", nullable = false, length = 255)
@@ -53,8 +49,10 @@ public class Profile {
     @Column(name = "years_of_experience")
     private Integer yearsOfExperience;
 
-    @ElementCollection
-    @Column(name = "skill", nullable = false, length = 100)
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(name = "profile_skills", joinColumns = @JoinColumn(name = "profile_id"))
+    @Column(name = "skill")
+    @JsonIgnore
     private List<String> skills;
 
     @Column(name = "github_url", length = 512)

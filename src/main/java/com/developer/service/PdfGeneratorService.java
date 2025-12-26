@@ -5,6 +5,8 @@ import java.io.ByteArrayOutputStream;
 import org.springframework.stereotype.Service;
 
 import com.developer.dto.response.ResumeDTO;
+import com.developer.dto.response.ResumeDTO.AchievementItem;
+import com.developer.dto.response.ResumeDTO.EducationItem;
 import com.developer.dto.response.ResumeDTO.Header;
 import com.developer.dto.response.ResumeDTO.ProjectItem;
 import com.developer.exception.ResumeGenerationException;
@@ -13,9 +15,6 @@ import com.lowagie.text.DocumentException;
 import com.lowagie.text.Font;
 import com.lowagie.text.FontFactory;
 import com.lowagie.text.Paragraph;
-import com.lowagie.text.Phrase;
-import com.lowagie.text.pdf.PdfPCell;
-import com.lowagie.text.pdf.PdfPTable;
 import com.lowagie.text.pdf.PdfWriter;
 
 @Service
@@ -35,6 +34,8 @@ public class PdfGeneratorService {
             addHeader(document, resume.getHeader());
             addProfessionalSummary(document, resume.getProfessionalSummary());
             addSkillsSection(document, resume.getSkills());
+            addEducationSection(document, resume.getEducation());
+            addAchievementsSection(document, resume.getAchievements());
             addProjectsSection(document, resume.getProjects());
 
             document.close();
@@ -188,6 +189,134 @@ public class PdfGeneratorService {
             Paragraph links = new Paragraph(linksLine.toString(), FONT_NORMAL);
             links.setSpacingAfter(6f);
             document.add(links);
+        } else {
+            Paragraph spacer = new Paragraph(" ", FONT_NORMAL);
+            spacer.setSpacingAfter(4f);
+            document.add(spacer);
+        }
+    }
+
+    private void addEducationSection(Document document, java.util.List<EducationItem> education) throws DocumentException {
+        if (education == null || education.isEmpty()) {
+            return;
+        }
+
+        Paragraph title = new Paragraph("Education", FONT_SECTION_TITLE);
+        title.setSpacingBefore(4f);
+        title.setSpacingAfter(4f);
+        document.add(title);
+
+        for (EducationItem edu : education) {
+            addSingleEducation(document, edu);
+        }
+    }
+
+    private void addSingleEducation(Document document, EducationItem edu) throws DocumentException {
+        StringBuilder eduLine = new StringBuilder();
+        if (edu.getDegree() != null && !edu.getDegree().isBlank()) {
+            eduLine.append(edu.getDegree());
+        }
+        if (edu.getFieldOfStudy() != null && !edu.getFieldOfStudy().isBlank()) {
+            if (!eduLine.isEmpty()) {
+                eduLine.append(" in ");
+            }
+            eduLine.append(edu.getFieldOfStudy());
+        }
+        if (edu.getInstitution() != null && !edu.getInstitution().isBlank()) {
+            if (!eduLine.isEmpty()) {
+                eduLine.append(" - ");
+            }
+            eduLine.append(edu.getInstitution());
+        }
+        if (!eduLine.isEmpty()) {
+            Paragraph eduTitle = new Paragraph(eduLine.toString(), FONT_HEADER_SUBTITLE);
+            eduTitle.setSpacingBefore(4f);
+            document.add(eduTitle);
+        }
+
+        StringBuilder dateLine = new StringBuilder();
+        if (edu.getStartDate() != null) {
+            dateLine.append(edu.getStartDate().toString());
+        }
+        if (edu.getEndDate() != null) {
+            if (!dateLine.isEmpty()) {
+                dateLine.append(" - ");
+            }
+            dateLine.append(edu.getEndDate().toString());
+        } else if (edu.getStartDate() != null) {
+            dateLine.append(" - Present");
+        }
+        if (!dateLine.isEmpty()) {
+            Paragraph date = new Paragraph(dateLine.toString(), FONT_NORMAL);
+            date.setSpacingAfter(2f);
+            document.add(date);
+        }
+
+        if (edu.getGrade() != null && !edu.getGrade().isBlank()) {
+            Paragraph grade = new Paragraph("Grade: " + edu.getGrade(), FONT_NORMAL);
+            grade.setSpacingAfter(2f);
+            document.add(grade);
+        }
+
+        if (edu.getDescription() != null && !edu.getDescription().isBlank()) {
+            Paragraph desc = new Paragraph(edu.getDescription(), FONT_NORMAL);
+            desc.setSpacingAfter(6f);
+            document.add(desc);
+        } else {
+            Paragraph spacer = new Paragraph(" ", FONT_NORMAL);
+            spacer.setSpacingAfter(4f);
+            document.add(spacer);
+        }
+    }
+
+    private void addAchievementsSection(Document document, java.util.List<AchievementItem> achievements) throws DocumentException {
+        if (achievements == null || achievements.isEmpty()) {
+            return;
+        }
+
+        Paragraph title = new Paragraph("Achievements & Certifications", FONT_SECTION_TITLE);
+        title.setSpacingBefore(4f);
+        title.setSpacingAfter(4f);
+        document.add(title);
+
+        for (AchievementItem achievement : achievements) {
+            addSingleAchievement(document, achievement);
+        }
+    }
+
+    private void addSingleAchievement(Document document, AchievementItem achievement) throws DocumentException {
+        StringBuilder achievementLine = new StringBuilder();
+        if (achievement.getTitle() != null && !achievement.getTitle().isBlank()) {
+            achievementLine.append(achievement.getTitle());
+        }
+        if (achievement.getIssuer() != null && !achievement.getIssuer().isBlank()) {
+            if (!achievementLine.isEmpty()) {
+                achievementLine.append(" - ");
+            }
+            achievementLine.append(achievement.getIssuer());
+        }
+        if (!achievementLine.isEmpty()) {
+            Paragraph achievementTitle = new Paragraph(achievementLine.toString(), FONT_HEADER_SUBTITLE);
+            achievementTitle.setSpacingBefore(4f);
+            document.add(achievementTitle);
+        }
+
+        if (achievement.getIssueDate() != null) {
+            Paragraph date = new Paragraph(achievement.getIssueDate().toString(), FONT_NORMAL);
+            date.setSpacingAfter(2f);
+            document.add(date);
+        }
+
+        if (achievement.getDescription() != null && !achievement.getDescription().isBlank()) {
+            Paragraph desc = new Paragraph(achievement.getDescription(), FONT_NORMAL);
+            desc.setSpacingAfter(2f);
+            document.add(desc);
+        }
+
+        if (achievement.getLink() != null && !achievement.getLink().isBlank()) {
+            Paragraph link = new Paragraph("Link: " + achievement.getLink(), FONT_NORMAL);
+            link.setSpacingAfter(6f);
+            document.add(link);
         } else {
             Paragraph spacer = new Paragraph(" ", FONT_NORMAL);
             spacer.setSpacingAfter(4f);

@@ -1,5 +1,6 @@
 package com.developer.service;
 
+import java.util.List;
 import java.util.regex.Pattern;
 
 import org.springframework.security.core.Authentication;
@@ -44,12 +45,35 @@ public class ProfileService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
     }
 
-    @Transactional(readOnly = true)
     public ProfileResponse getCurrentUserProfile() {
         User user = getCurrentUser();
         Profile profile = profileRepository.findByUser(user)
                 .orElseThrow(() -> new ResourceNotFoundException("Profile not found"));
-        return ProfileResponse.fromEntity(profile);
+        return fromEntity(profile);
+    }
+
+    public ProfileResponse fromEntity(Profile profile) {
+        ProfileResponse response = new ProfileResponse();
+        response.setId(profile.getId());
+        response.setFullName(profile.getFullName());
+        response.setHeadline(profile.getHeadline());
+        response.setSummary(profile.getSummary());
+        response.setLocation(profile.getLocation());
+        response.setYearsOfExperience(profile.getYearsOfExperience());
+        response.setSkills(
+                profile.getSkills() != null
+                        ? List.copyOf(profile.getSkills())
+                        : List.of()
+        );
+        response.setGithubUrl(profile.getGithubUrl());
+        response.setLinkedinUrl(profile.getLinkedinUrl());
+        response.setPortfolioUrl(profile.getPortfolioUrl());
+        if (profile.getUser() != null) {
+            response.setEmail(profile.getUser().getEmail());
+        }
+        response.setCreatedAt(profile.getCreatedAt());
+        response.setUpdatedAt(profile.getUpdatedAt());
+        return response;
     }
 
     @Transactional
@@ -76,7 +100,7 @@ public class ProfileService {
         profile.setPortfolioUrl(request.getPortfolioUrl());
 
         Profile saved = profileRepository.save(profile);
-        return ProfileResponse.fromEntity(saved);
+        return fromEntity(saved);
     }
 
     @Transactional
@@ -98,7 +122,7 @@ public class ProfileService {
         profile.setPortfolioUrl(request.getPortfolioUrl());
 
         Profile saved = profileRepository.save(profile);
-        return ProfileResponse.fromEntity(saved);
+        return fromEntity(saved);
     }
 
     private void validateUrls(String githubUrl, String linkedinUrl) {

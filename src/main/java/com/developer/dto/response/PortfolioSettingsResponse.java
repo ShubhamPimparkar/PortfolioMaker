@@ -16,6 +16,8 @@ public class PortfolioSettingsResponse {
     private String fontFamily;
     private Boolean showSkills;
     private Boolean showProjects;
+    private Boolean showEducation;
+    private Boolean showAchievements;
 
     public static PortfolioSettingsResponse fromEntity(PortfolioSettings settings) {
         PortfolioSettingsResponse response = new PortfolioSettingsResponse();
@@ -24,6 +26,8 @@ public class PortfolioSettingsResponse {
         response.setFontFamily(settings.getFontFamily());
         response.setShowSkills(settings.getShowSkills());
         response.setShowProjects(settings.getShowProjects());
+        response.setShowEducation(settings.getShowEducation());
+        response.setShowAchievements(settings.getShowAchievements());
         return response;
     }
 }

@@ -11,10 +11,10 @@ import com.developer.entity.User;
 
 public interface ProjectRepository extends JpaRepository<Project, UUID> {
 
-    @EntityGraph(attributePaths = "user")
+    @EntityGraph(attributePaths = {"user","techStack"})
     List<Project> findByUserOrderByCreatedAtDesc(User user);
 
-    @EntityGraph(attributePaths = "user")
+    @EntityGraph(attributePaths = {"user","techStack"})
     List<Project> findByUserAndIsPublicTrueOrderByCreatedAtDesc(User user);
 }
 
