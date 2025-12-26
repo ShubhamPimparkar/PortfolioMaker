@@ -5,9 +5,9 @@ spring:
     name: portfolio-backend
 
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/portfolio}
-    username: ${SPRING_DATASOURCE_USERNAME:root}
-    password: ${SPRING_DATASOURCE_PASSWORD:root}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://gondola.proxy.rlwy.net:57915/railway}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:WezHOFmEZqZmEyLEIlxYlAcUwixMWgof}
     driver-class-name: org.postgresql.Driver
 
   jpa:
