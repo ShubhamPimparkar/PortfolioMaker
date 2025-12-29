@@ -50,6 +50,12 @@ public class PortfolioAnalyticsEvent {
     @Column(name = "duration_seconds")
     private Integer durationSeconds;
 
+    @Column(name = "scroll_depth")
+    private Integer scrollDepth;
+
+    @Column(name = "user_agent", length = 512)
+    private String userAgent;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

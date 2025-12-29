@@ -2,6 +2,7 @@ package com.developer.analytics;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import com.developer.analytics.trends.DailyEventCountProjection;
@@ -39,5 +40,79 @@ public interface PortfolioAnalyticsEventRepository extends JpaRepository<Portfol
             @Param("userId") UUID userId,
             @Param("startDate") Instant startDate,
             @Param("endDate") Instant endDate);
+
+    /**
+     * Checks if a VIEW event exists for the given visitor and portfolio within the time window.
+     * Used for de-duplication: only one VIEW per visitor per portfolio per time window.
+     * 
+     * @param portfolioUserId The portfolio owner's user ID
+     * @param visitorId The visitor identifier
+     * @param sinceTime The earliest time to check (e.g., 30 minutes ago)
+     * @return true if a VIEW event exists, false otherwise
+     */
+    @Query("""
+            SELECT COUNT(e) > 0 FROM PortfolioAnalyticsEvent e 
+            WHERE e.portfolioUser.id = :portfolioUserId 
+                AND e.visitorId = :visitorId 
+                AND e.eventType = 'VIEW'
+                AND e.createdAt >= :sinceTime
+            """)
+    boolean existsViewEventForVisitorSince(
+            @Param("portfolioUserId") UUID portfolioUserId,
+            @Param("visitorId") String visitorId,
+            @Param("sinceTime") Instant sinceTime);
+
+    /**
+     * Checks if an ENGAGED event exists for the given visitor and portfolio.
+     * Used to prevent duplicate ENGAGED events per visit.
+     * 
+     * @param portfolioUserId The portfolio owner's user ID
+     * @param visitorId The visitor identifier
+     * @param sinceTime The earliest time to check (e.g., 30 minutes ago)
+     * @return true if an ENGAGED event exists, false otherwise
+     */
+    @Query("""
+            SELECT COUNT(e) > 0 FROM PortfolioAnalyticsEvent e 
+            WHERE e.portfolioUser.id = :portfolioUserId 
+                AND e.visitorId = :visitorId 
+                AND e.eventType = 'ENGAGED'
+                AND e.createdAt >= :sinceTime
+            """)
+    boolean existsEngagedEventForVisitorSince(
+            @Param("portfolioUserId") UUID portfolioUserId,
+            @Param("visitorId") String visitorId,
+            @Param("sinceTime") Instant sinceTime);
+
+    /**
+     * Finds the most recent VIEW event for a visitor and portfolio.
+     * Used to validate event flow (ENGAGED must have a corresponding VIEW).
+     * 
+     * @param portfolioUserId The portfolio owner's user ID
+     * @param visitorId The visitor identifier
+     * @param sinceTime The earliest time to check (e.g., 30 minutes ago)
+     * @return The most recent VIEW event, or empty if none exists
+     */
+    @Query("""
+            SELECT e FROM PortfolioAnalyticsEvent e 
+            WHERE e.portfolioUser.id = :portfolioUserId 
+                AND e.visitorId = :visitorId 
+                AND e.eventType = 'VIEW'
+                AND e.createdAt >= :sinceTime
+            ORDER BY e.createdAt DESC
+            """)
+    List<PortfolioAnalyticsEvent> findViewEventsForVisitor(
+            @Param("portfolioUserId") UUID portfolioUserId,
+            @Param("visitorId") String visitorId,
+            @Param("sinceTime") Instant sinceTime);
+    
+    /**
+     * Gets the most recent VIEW event for a visitor (helper method).
+     */
+    default Optional<PortfolioAnalyticsEvent> findMostRecentViewEventForVisitor(
+            UUID portfolioUserId, String visitorId, Instant sinceTime) {
+        List<PortfolioAnalyticsEvent> events = findViewEventsForVisitor(
+                portfolioUserId, visitorId, sinceTime);
+        return events.isEmpty() ? Optional.empty() : Optional.of(events.get(0));
+    }
 }
 

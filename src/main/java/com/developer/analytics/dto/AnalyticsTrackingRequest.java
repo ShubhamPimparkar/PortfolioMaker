@@ -19,6 +19,10 @@ public class AnalyticsTrackingRequest {
     @Min(value = 0, message = "Duration seconds must be non-negative")
     private Integer durationSeconds;
 
+    // Optional: scroll depth as percentage (0-100)
+    @Min(value = 0, message = "Scroll depth must be non-negative")
+    private Integer scrollDepth;
+
     // Optional: visitor ID can be sent in request body as fallback
     private String visitorId;
 }

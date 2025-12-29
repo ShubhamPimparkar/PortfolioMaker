@@ -18,10 +18,10 @@ import com.developer.analytics.summary.PortfolioAnalyticsSummaryRepository;
  * Service responsible for aggregating raw analytics events into summary metrics.
  * 
  * Aggregation logic:
- * - VIEW events count as total views
- * - ENGAGED events count as engaged views (duration >= threshold)
- * - BOUNCE events count as bounce (duration < threshold)
- * - Average duration calculated from all events with duration
+ * - VIEW events count as total views (de-duplicated by visitor)
+ * - ENGAGED events count as engaged views
+ * - BOUNCE is DERIVED server-side: VIEW exists but NO ENGAGED event for that visitor
+ * - Average duration calculated from VIEW events with duration
  */
 @Service
 public class PortfolioAnalyticsAggregationService {
@@ -44,6 +44,9 @@ public class PortfolioAnalyticsAggregationService {
     /**
      * Aggregates analytics events for a specific portfolio user and updates the summary.
      * 
+     * Bounce is derived server-side: a VIEW event without a corresponding ENGAGED event
+     * for the same visitor is considered a bounce.
+     * 
      * @param portfolioUserId The UUID of the portfolio owner
      */
     @Transactional
@@ -59,37 +62,52 @@ public class PortfolioAnalyticsAggregationService {
                 return;
             }
 
-            // Compute metrics
-            int totalViews = 0;
-            int engagedViews = 0;
-            int bounceCount = 0;
+            // Group events by visitor to properly calculate bounce
+            // A bounce is: VIEW exists but NO ENGAGED event for that visitor
+            
+            // Track unique visitors with VIEW events
+            java.util.Set<String> visitorsWithView = new java.util.HashSet<>();
+            // Track unique visitors with ENGAGED events
+            java.util.Set<String> visitorsWithEngaged = new java.util.HashSet<>();
+            // Track duration from VIEW events only (for average calculation)
             int totalDuration = 0;
             int durationCount = 0;
 
             for (PortfolioAnalyticsEvent event : events) {
-                // Count event types
+                // Ignore old BOUNCE events (they should not exist going forward)
                 if (event.getEventType() == AnalyticsEventType.VIEW) {
-                    totalViews++;
+                    visitorsWithView.add(event.getVisitorId());
+                    
+                    // Include duration from VIEW events for average calculation
+                    if (event.getDurationSeconds() != null) {
+                        totalDuration += event.getDurationSeconds();
+                        durationCount++;
+                    }
                 } else if (event.getEventType() == AnalyticsEventType.ENGAGED) {
-                    engagedViews++;
-                } else if (event.getEventType() == AnalyticsEventType.BOUNCE) {
-                    bounceCount++;
+                    visitorsWithEngaged.add(event.getVisitorId());
                 }
+                // BOUNCE events are ignored - bounce is derived, not stored
+            }
 
-                // Include duration from any event that has it for average calculation
-                if (event.getDurationSeconds() != null) {
-                    totalDuration += event.getDurationSeconds();
-                    durationCount++;
+            // Calculate metrics
+            int totalViews = visitorsWithView.size();
+            int engagedViews = visitorsWithEngaged.size();
+            
+            // Derive bounce: visitors with VIEW but NO ENGAGED
+            int bounceCount = 0;
+            for (String visitorId : visitorsWithView) {
+                if (!visitorsWithEngaged.contains(visitorId)) {
+                    bounceCount++;
                 }
             }
 
-            // Calculate average duration
+            // Calculate average duration from VIEW events
             int avgDurationSeconds = durationCount > 0 ? totalDuration / durationCount : 0;
 
             // Persist or update summary
             createOrUpdateSummary(portfolioUserId, totalViews, engagedViews, bounceCount, avgDurationSeconds);
 
-            logger.debug("Aggregated analytics for user {}: views={}, engaged={}, bounce={}, avgDuration={}s",
+            logger.debug("Aggregated analytics for user {}: views={}, engaged={}, bounce={} (derived), avgDuration={}s",
                     portfolioUserId, totalViews, engagedViews, bounceCount, avgDurationSeconds);
 
         } catch (Exception e) {

@@ -130,11 +130,15 @@ public class AnalyticsTrendsService {
         for (LocalDate date : dates) {
             Map<AnalyticsEventType, Long> dayCounts = dailyCounts.getOrDefault(date, new HashMap<>());
             Long viewCount = dayCounts.getOrDefault(AnalyticsEventType.VIEW, 0L);
-            Long bounceCount = dayCounts.getOrDefault(AnalyticsEventType.BOUNCE, 0L);
+            Long engagedCount = dayCounts.getOrDefault(AnalyticsEventType.ENGAGED, 0L);
             
+            // Derive bounce rate: (VIEW count - ENGAGED count) / VIEW count
+            // Note: This is an approximation for trends. Perfect bounce calculation requires
+            // visitor-level grouping which is done in the aggregation service.
             int rate = 0;
             if (viewCount > 0) {
-                rate = (int) Math.round((bounceCount.doubleValue() / viewCount.doubleValue()) * 100);
+                long bounceCount = Math.max(0, viewCount - engagedCount);
+                rate = (int) Math.round((bounceCount / viewCount.doubleValue()) * 100);
             }
             
             AnalyticsTrendPoint point = new AnalyticsTrendPoint();
