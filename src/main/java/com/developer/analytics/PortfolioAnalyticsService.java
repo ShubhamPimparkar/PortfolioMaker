@@ -16,11 +16,16 @@ import com.developer.repository.UserRepository;
 /**
  * Service for tracking portfolio analytics events with production-grade filtering:
  * - Excludes self-views (portfolio owner viewing their own portfolio)
- * - De-duplicates repeat views (30-minute window)
- * - Filters bots and crawlers
- * - Validates event flow (VIEW before ENGAGED)
- * - Validates engagement conditions
- * - Filters low-quality visits (duration < 2 seconds)
+ * - De-duplicates repeat views (30-minute window per visitor)
+ * - Filters bots and crawlers by User-Agent
+ * - Validates event flow (ENGAGED must have a corresponding VIEW)
+ * - Validates engagement conditions (duration >= 30s OR scroll >= 50%)
+ * - Filters low-quality ENGAGED events (duration < 2 seconds)
+ * 
+ * Key behavior:
+ * - VIEW events: Tracked immediately on page load (duration can be 0)
+ * - ENGAGED events: Only tracked if engagement criteria are met and a VIEW exists
+ * - All validation failures are silent to never block portfolio rendering
  */
 @Service
 public class PortfolioAnalyticsService {
@@ -63,7 +68,34 @@ public class PortfolioAnalyticsService {
     public void trackEvent(String username, AnalyticsTrackingRequest request, String visitorId,
                           UUID authenticatedUserId, String userAgent) {
         try {
-            // Resolve portfolio owner
+            // STEP 1: VALIDATE PAYLOAD
+            if (request == null || request.getEventType() == null) {
+                logger.debug("Invalid tracking request: missing event type for username: {}", username);
+                return; // Fail silently
+            }
+
+            AnalyticsEventType eventType = request.getEventType();
+
+            // Validate duration if provided (must be non-negative)
+            if (request.getDurationSeconds() != null && request.getDurationSeconds() < 0) {
+                logger.debug("Invalid duration seconds (negative) for username: {}", username);
+                return; // Fail silently
+            }
+
+            // Validate scroll depth if provided (must be 0-100)
+            if (request.getScrollDepth() != null && 
+                (request.getScrollDepth() < 0 || request.getScrollDepth() > 100)) {
+                logger.debug("Invalid scroll depth (out of range) for username: {}", username);
+                return; // Fail silently
+            }
+
+            // Validate visitor ID
+            if (visitorId == null || visitorId.isBlank() || "anonymous".equals(visitorId)) {
+                logger.debug("Missing or invalid visitor ID for username: {}", username);
+                return; // Fail silently
+            }
+
+            // STEP 2: RESOLVE PORTFOLIO OWNER
             User portfolioUser = userRepository.findByUsername(username)
                     .orElse(null);
 
@@ -72,59 +104,39 @@ public class PortfolioAnalyticsService {
                 return; // Fail silently
             }
 
-            // 1. SELF-VIEW EXCLUSION
+            // STEP 3: SELF-VIEW EXCLUSION
             // If authenticated user is viewing their own portfolio, ignore the event
             if (authenticatedUserId != null && authenticatedUserId.equals(portfolioUser.getId())) {
-                logger.debug("Self-view excluded for portfolio owner: {}", username);
+                logger.debug("Self-view excluded for portfolio owner: {} (visitor: {})", username, visitorId);
                 return; // Fail silently
             }
 
-            // 2. VALIDATE PAYLOAD
-            if (request == null || request.getEventType() == null) {
-                logger.debug("Invalid tracking request for username: {}", username);
-                return; // Fail silently
-            }
-
-            // Validate duration if provided
-            if (request.getDurationSeconds() != null && request.getDurationSeconds() < 0) {
-                logger.debug("Invalid duration seconds for username: {}", username);
-                return; // Fail silently
-            }
-
-            // Validate scroll depth if provided
-            if (request.getScrollDepth() != null && 
-                (request.getScrollDepth() < 0 || request.getScrollDepth() > 100)) {
-                logger.debug("Invalid scroll depth for username: {}", username);
-                return; // Fail silently
-            }
-
-            // Validate visitor ID
-            if (visitorId == null || visitorId.isBlank()) {
-                logger.debug("Missing visitor ID for username: {}", username);
-                return; // Fail silently
-            }
-
-            // 3. BOT & NOISE FILTERING
-            if (isBotOrNoise(userAgent, request.getDurationSeconds())) {
-                logger.debug("Bot or noise filtered for username: {}", username);
+            // STEP 4: BOT FILTERING (User-Agent based)
+            // Check for bots/crawlers - this applies to all event types
+            if (isBot(userAgent)) {
+                logger.debug("Bot/crawler filtered for username: {} (user-agent: {})", username, userAgent);
                 return; // Fail silently
             }
 
             // Calculate de-duplication window
             Instant sinceTime = Instant.now().minus(DEDUPLICATION_WINDOW_MINUTES, ChronoUnit.MINUTES);
 
-            // 4. DE-DUPLICATION LOGIC
-            if (request.getEventType() == AnalyticsEventType.VIEW) {
-                // Check if a VIEW already exists for this visitor within the time window
+            // STEP 5: EVENT-SPECIFIC VALIDATION AND DE-DUPLICATION
+            if (eventType == AnalyticsEventType.VIEW) {
+                // VIEW events: Track immediately on page load (duration can be 0)
+                // Only filter if it's a duplicate within the time window
                 if (analyticsEventRepository.existsViewEventForVisitorSince(
                         portfolioUser.getId(), visitorId, sinceTime)) {
-                    logger.debug("Duplicate VIEW filtered for visitor: {} on portfolio: {}", 
-                            visitorId, username);
+                    logger.debug("Duplicate VIEW filtered for visitor: {} on portfolio: {} (within {} minutes)", 
+                            visitorId, username, DEDUPLICATION_WINDOW_MINUTES);
                     return; // Fail silently
                 }
-            } else if (request.getEventType() == AnalyticsEventType.ENGAGED) {
-                // 5. EVENT FLOW VALIDATION
-                // ENGAGED must have a corresponding VIEW
+                
+                // VIEW events are always valid - no duration requirement
+                // They represent a page visit, even if duration is 0
+                
+            } else if (eventType == AnalyticsEventType.ENGAGED) {
+                // ENGAGED events: Must have a corresponding VIEW first
                 var recentViewOptional = analyticsEventRepository
                         .findMostRecentViewEventForVisitor(portfolioUser.getId(), visitorId, sinceTime);
                 
@@ -142,33 +154,43 @@ public class PortfolioAnalyticsService {
                     return; // Fail silently
                 }
 
-                // 6. ENGAGEMENT VALIDATION
-                // Count as ENGAGED only if:
+                // Validate engagement criteria
+                // ENGAGED must meet at least one of:
                 // - Duration >= 30 seconds, OR
-                // - Scroll depth >= 50%, OR
-                // - (Frontend should send ENGAGED only when these conditions are met)
-                // We validate here as a safety check
-                boolean isEngaged = false;
+                // - Scroll depth >= 50%
+                boolean meetsEngagementCriteria = false;
+                
                 if (request.getDurationSeconds() != null && 
                     request.getDurationSeconds() >= ENGAGEMENT_THRESHOLD_SECONDS) {
-                    isEngaged = true;
-                } else if (request.getScrollDepth() != null && 
-                          request.getScrollDepth() >= ENGAGEMENT_SCROLL_DEPTH_PERCENT) {
-                    isEngaged = true;
+                    meetsEngagementCriteria = true;
+                }
+                
+                if (!meetsEngagementCriteria && request.getScrollDepth() != null && 
+                    request.getScrollDepth() >= ENGAGEMENT_SCROLL_DEPTH_PERCENT) {
+                    meetsEngagementCriteria = true;
                 }
 
-                if (!isEngaged) {
-                    logger.debug("ENGAGED event does not meet engagement criteria for visitor: {} on portfolio: {}", 
-                            visitorId, username);
+                if (!meetsEngagementCriteria) {
+                    logger.debug("ENGAGED event does not meet engagement criteria (duration: {}, scroll: {}) for visitor: {} on portfolio: {}", 
+                            request.getDurationSeconds(), request.getScrollDepth(), visitorId, username);
+                    return; // Fail silently
+                }
+
+                // Filter low-quality ENGAGED events (duration < 2 seconds is likely noise)
+                // This only applies to ENGAGED events, not VIEW events
+                if (request.getDurationSeconds() != null && 
+                    request.getDurationSeconds() < MIN_DURATION_SECONDS) {
+                    logger.debug("Low-quality ENGAGED event filtered (duration < {}s) for visitor: {} on portfolio: {}", 
+                            MIN_DURATION_SECONDS, visitorId, username);
                     return; // Fail silently
                 }
             }
 
-            // 7. CREATE AND PERSIST EVENT
+            // STEP 6: CREATE AND PERSIST EVENT
             PortfolioAnalyticsEvent event = new PortfolioAnalyticsEvent();
             event.setPortfolioUser(portfolioUser);
             event.setVisitorId(visitorId);
-            event.setEventType(request.getEventType());
+            event.setEventType(eventType);
             event.setDurationSeconds(request.getDurationSeconds());
             event.setScrollDepth(request.getScrollDepth());
             event.setUserAgent(userAgent != null && userAgent.length() > 512 
@@ -176,44 +198,47 @@ public class PortfolioAnalyticsService {
 
             analyticsEventRepository.save(event);
 
-            logger.debug("Analytics event tracked: {} for portfolio owner: {} (visitor: {})", 
-                    request.getEventType(), username, visitorId);
+            logger.debug("Analytics event tracked successfully: {} for portfolio owner: {} (visitor: {}, duration: {}s, scroll: {}%)", 
+                    eventType, username, visitorId, 
+                    request.getDurationSeconds() != null ? request.getDurationSeconds() : "null",
+                    request.getScrollDepth() != null ? request.getScrollDepth() : "null");
 
         } catch (Exception e) {
             // Fail silently - log only
-            logger.warn("Failed to track analytics event for username: {}. Error: {}", 
-                    username, e.getMessage(), e);
+            logger.warn("Failed to track analytics event for username: {} (event: {}). Error: {}", 
+                    username, request != null ? request.getEventType() : "null", e.getMessage(), e);
         }
     }
 
     /**
-     * Checks if the request is from a bot, crawler, or low-quality visit.
+     * Checks if the request is from a bot or crawler based on User-Agent.
+     * This method only checks User-Agent patterns, not duration.
+     * Duration-based filtering is handled separately for ENGAGED events.
      * 
      * @param userAgent The User-Agent header
-     * @param durationSeconds The duration of the visit
-     * @return true if the request should be filtered out
+     * @return true if the request is from a bot/crawler and should be filtered out
      */
-    private boolean isBotOrNoise(String userAgent, Integer durationSeconds) {
-        // Filter bots and crawlers by User-Agent
-        if (userAgent != null && !userAgent.isBlank()) {
-            String userAgentLower = userAgent.toLowerCase();
-            String[] botPatterns = {
-                "bot", "crawler", "spider", "scraper",
-                "preview", "facebookexternalhit", "twitterbot",
-                "linkedinbot", "whatsapp", "telegram", "slackbot",
-                "googlebot", "bingbot", "yandexbot", "baiduspider"
-            };
-            
-            for (String pattern : botPatterns) {
-                if (userAgentLower.contains(pattern)) {
-                    return true;
-                }
-            }
+    private boolean isBot(String userAgent) {
+        if (userAgent == null || userAgent.isBlank()) {
+            // Missing User-Agent might indicate a bot, but we'll allow it
+            // to avoid false positives (some legitimate clients don't send User-Agent)
+            return false;
         }
 
-        // Filter visits with duration < 2 seconds (likely noise)
-        if (durationSeconds != null && durationSeconds < MIN_DURATION_SECONDS) {
-            return true;
+        String userAgentLower = userAgent.toLowerCase();
+        String[] botPatterns = {
+            "bot", "crawler", "spider", "scraper",
+            "preview", "facebookexternalhit", "twitterbot",
+            "linkedinbot", "whatsapp", "telegram", "slackbot",
+            "googlebot", "bingbot", "yandexbot", "baiduspider",
+            "headless", "phantom", "selenium", "webdriver",
+            "curl", "wget", "python-requests", "java/"
+        };
+        
+        for (String pattern : botPatterns) {
+            if (userAgentLower.contains(pattern)) {
+                return true;
+            }
         }
 
         return false;

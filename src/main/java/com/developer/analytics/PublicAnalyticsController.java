@@ -46,9 +46,9 @@ public class PublicAnalyticsController {
      *
      * @param username The username of the portfolio owner
      * @param request The tracking request containing event type, duration, and scroll depth
-     * @param visitorIdHeader The visitor ID from header (optional, can be in request body)
-     * @param httpRequest The HTTP request to extract User-Agent
-     * @return 204 No Content on success
+     * @param visitorIdHeader The visitor ID from header (preferred, optional fallback to request body)
+     * @param httpRequest The HTTP request to extract User-Agent and other headers
+     * @return 204 No Content on success (always returns success to never block portfolio rendering)
      */
     @PostMapping("/{username}/track")
     public ResponseEntity<Void> trackEvent(
@@ -57,16 +57,23 @@ public class PublicAnalyticsController {
             @RequestHeader(value = VISITOR_ID_HEADER, required = false) String visitorIdHeader,
             HttpServletRequest httpRequest) {
 
-        // Extract visitor ID: header > request body > fallback
-        // Frontend can send visitor ID in header or request body
-        String visitorId = null;
-        if (visitorIdHeader != null && !visitorIdHeader.isBlank()) {
-            visitorId = visitorIdHeader;
-        } else if (request.getVisitorId() != null && !request.getVisitorId().isBlank()) {
-            visitorId = request.getVisitorId();
-        } else {
-            visitorId = "anonymous"; // Fallback for missing visitor ID
+        // Validate username is not empty
+        if (username == null || username.isBlank()) {
+            return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
         }
+
+        // Extract visitor ID with priority: header > request body
+        // Header is preferred as it's more reliable and doesn't require request body parsing
+        String visitorId = null;
+        if (visitorIdHeader != null && !visitorIdHeader.isBlank() && !visitorIdHeader.equals("anonymous")) {
+            visitorId = visitorIdHeader.trim();
+        } else if (request != null && request.getVisitorId() != null && 
+                   !request.getVisitorId().isBlank() && !request.getVisitorId().equals("anonymous")) {
+            visitorId = request.getVisitorId().trim();
+        }
+
+        // If visitor ID is still null or invalid, service will reject it
+        // We don't set a fallback "anonymous" here - let the service handle validation
 
         // Extract User-Agent header
         String userAgent = httpRequest.getHeader(USER_AGENT_HEADER);
@@ -75,9 +82,11 @@ public class PublicAnalyticsController {
         UUID authenticatedUserId = getAuthenticatedUserId();
 
         // Track the event (service handles all validation, filtering, and errors silently)
+        // This will fail silently if validation fails, ensuring portfolio rendering is never blocked
         analyticsService.trackEvent(username, request, visitorId, authenticatedUserId, userAgent);
 
-        // Always return 204 to never block portfolio rendering
+        // Always return 204 No Content to never block portfolio rendering
+        // Even if tracking fails, we return success to the client
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
 
